@@ -1,0 +1,2 @@
+ls ./Entity  | awk '{ print "sed -i -e \"s/^class \\([a-zA-Z0-9]*\\)/class \\1 extends \\\\\\\\NoizuLabs\\\\\\\\Core\\\\\\\\Doctrine\\\\\\\\Entity /\" ./Entity/" $1 }' | sh
+

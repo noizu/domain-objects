@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php 
+// Clear tmp folder
+echo "Clearing Tmp Folder:\n " . `rm -rf ./tmp/*` . "\n";
+
+// Clear Source
+echo "Clearing Src \n" . `rm -rf ./src` . "\n";
+
+// Generate Annotation
+echo "Generate New Annotations\n" . `./generate-new-annotation` . "\n";
+
+// Set NameSpaces
+echo "Set Namespaces \n" . `./add-namespaces` . "\n";
+
+// Generate Entities
+echo "Clearing Entities \n" . `rm -rf ./Entity/*` . "\n";
+echo "ReGenerating Entities \n" . `./generate-entities` . "\n"; 
+
+// Specify Parnet Class
+echo "Setting Parent Class for Entities \n" . `./add-class` . "\n"; 

@@ -1,0 +1,1 @@
+ls ./src | awk '{print "sed -i -e\"s#<?php#<?php\\nnamespace NoizuLabs\\\\\\\\Core\\\\\\\\Doctrine\\\\\\\\Entity;\\n\\n#\" ./src/" $1 }' | sh

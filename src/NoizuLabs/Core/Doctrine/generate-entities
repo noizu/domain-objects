@@ -1,0 +1,2 @@
+./doctrine orm:generate-entities --generate-annotations=../../ ../../
+./doctrine orm:generate-proxies tmp

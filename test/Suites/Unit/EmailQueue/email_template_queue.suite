@@ -1,0 +1,24 @@
+#Story: Email Template Queue
+
+###########################
+# Email Template Queue    #
+###########################
+
+#Scenario: The System Should Be Able To Queue Emails
+Given the email queue
+And the registration email template
+And a test user
+When the system queues an email
+Then the email should be saved to the email queue
+And the email specific data should be available
+
+#Scenario: The System Should Save point in time information when sending emails
+Given the email queue
+And the registration email template
+And a test user
+When the system queues an email
+And it is processed
+Then the email should be saved to the email queue
+And the email should be marked as processed
+And the email specific data should be available
+And the bind time data should be available

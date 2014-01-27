@@ -1,0 +1,8 @@
+<?php
+
+$container['DB_USER'] = 'root';
+$container['DB_PASS'] = '';
+$container['DB_NAME'] = 'test';
+$container['DB_HOST'] = '';
+
+

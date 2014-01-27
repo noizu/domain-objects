@@ -1,0 +1,21 @@
+#Story: Moderated Strings
+
+###########################
+# WriteAReviwe Core Tests #
+###########################
+
+#Scenario: A user should be able to create a moderated string
+Given a user
+When the user creates a moderated string
+Then the string should be in a pending state
+And a ChangeLog entry should have been created
+And a ModeratedString entry should have been created
+
+#Scenario: An admin should be able to approve a moderated string
+Given a user and an admin user
+When the user creates a moderated string
+And the admin user approves it
+Then the string should be in an approved state
+And a ChangeLog entry should have been created
+And a ChangeLog approval entry should have been created
+And a ModeratedString entry should have been created
