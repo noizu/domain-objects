@@ -4,8 +4,8 @@
     "require": {
              "noizu-labs/fragmented-keys": "dev-master",
              "noizu-labs/php-conform": "dev-master", 
-             "pimple/pimple":"*",
-             "doctrine/orm": "*"
+             "pimple/pimple":"~1.1",
+             "doctrine/orm": "~2.4"
 
     },
     "require-dev": {
