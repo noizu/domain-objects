@@ -77,7 +77,6 @@ class Deploy {
     {
         $this->checkRequiredSettings(array("user","sentinel","project-dir","deploy-to", "server"));
         // Ths needs to be run from root directory of project!
-        print_r($GLOBALS); 
  
         $user = $this->settings['user'];
         $sentinel = $this->settings['sentinel'];
