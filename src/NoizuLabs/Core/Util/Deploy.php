@@ -24,7 +24,6 @@ class Deploy {
           
         $raw = file_get_contents($configPath); 
         $this->settings = json_decode($raw, true);
-        print_r($this->settings); 
 
 	echo "Loaded Deploy with " . getcwd() . "/$configFile\n"; 
 
