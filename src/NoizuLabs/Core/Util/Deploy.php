@@ -88,6 +88,15 @@ class Deploy {
 
         if(substr($deployTo,-1,1) == "/") $deployTo = substr($deployTo,0,-1);
 
+        // Todo wait for ongoing deployment to finish for up to five minutes
+
+        $ts = time(); 
+ 
+        while($this->isOngoingDeployment() && $ts < (time() + 60*5)) {
+        echo "Waiting 30 seconds for current deployment to finish ...\n"; 
+            sleep(30);
+        }        
+
         if(!$this->isOngoingDeployment())
         {
            $cwd = getcwd(); 
@@ -98,6 +107,9 @@ class Deploy {
            $cmd = "ssh {$user}@{$server} \"touch {$projectDir}/{$deployTo}/{$sentinel}\"";
            echo "running $cmd";
            echo `$cmd` . "\n";
+        } else {
+           error_log("unable to deploy, deployment in progress"); 
+           throw new \Exception("Deployment already in progress"); 
         }
     }
 
@@ -114,7 +126,7 @@ class Deploy {
         $returnCode = 0;
         $response = array(); 
         $r = exec($cmd, $response, $returnCode);
-        return !($returnCode == 0);
+        return ($returnCode == 0);
     }
 
 
