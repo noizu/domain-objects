@@ -1,6 +1,0 @@
-#!/usr/bin/php
-
-echo "deployment logic goes here";
-echo "check remote for in progress deployment";
-echo "if no in progress deployment do rsync and then touch inprogress deployment file";
-echo "fin";
