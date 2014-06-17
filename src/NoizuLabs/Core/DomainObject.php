@@ -38,7 +38,18 @@ abstract class DomainObject {
     //=========================================================
     // Init
     //=========================================================
-    protected function init()
+
+    public function __construct()
+    {
+        global $container;
+        $this->container = &$container;
+        $this->errors = array();
+        $this->logs[LOG_LEVEL_ERROR] = array();
+        $this->logs[LOG_LEVEL_WARNING] = array();
+        $this->logs[LOG_LEVEL_DEBUG] = array();
+    }    
+    
+    protected function init() 
     {
         if($this->loaded == false)
         {     
@@ -55,7 +66,7 @@ abstract class DomainObject {
             $entityManager =  $this->container['EntityManager'];
             $this->entity = $entityManager->find($this->entityName, $mixed);
             $this->loaded = true;
-        }  else if (IS_A($mixed, $this->entityName)) {
+        }  else if (is_a($mixed, $this->entityName)) {
             $this->entity = $mixed;
             $this->loaded = true;
         } else if (is_string($mixed)) {
@@ -63,38 +74,18 @@ abstract class DomainObject {
         }
     }
 
-
     public function loadByString()
     {
         throw new \Exception( "LoadByString not Implemented for " . get_class($this));
     }
-
-    /**
-     * Get Site, used for multi-tenant sites.
-     * @param string $siteId
-     * @param string $partial
-     */
-    public function getSite($siteId = null, $partial = true)
-    {
-        if($siteId == null)
-        {
-            if($this->siteId) {
-                $siteId = $this->siteId;
-            } else {
-                $siteId = $this->container['SiteId'];
-            }
-        }
-
-        if($siteId) {
-            $entityManager = $this->container['EntityManager'];
-            return $entityManager->getPartialReference($this->container['EntityClass_Sites'], $siteId);
-        }
-    }
-
+        
+    //==================================================================================================================
+    // Rights Management (InProgress)
+    //==================================================================================================================
     public function slugify($text)
     {
-        // replace non letter or digits by -
-        $text = preg_replace('~[^\\pL\d]+~u', '-', $text);
+        // replace non letter or digits or [\.\-\_] by -
+        $text = preg_replace('~[^\\pL\d\.\-_]+~u', '-', $text);
 
         // trim
         $text = trim($text, '-');
@@ -115,8 +106,10 @@ abstract class DomainObject {
 
         return $text;
     }
-
-
+    
+    //==================================================================================================================
+    // Rights Management (InProgress)
+    //==================================================================================================================
     public function CreateAnyRole()
     {
         return $this->createAnyRole;
@@ -152,15 +145,6 @@ abstract class DomainObject {
         return $this->identifierName;
     }
 
-    public function __construct()
-    {
-        global $container;
-        $this->container = &$container;
-        $this->errors = array();
-        $this->logs[LOG_LEVEL_ERROR] = array();
-        $this->logs[LOG_LEVEL_WARNING] = array();
-        $this->logs[LOG_LEVEL_DEBUG] = array();
-    }
 
     public function getRequiredFields()
     {
@@ -186,7 +170,9 @@ abstract class DomainObject {
         }
     }
 
-
+    //==================================================================================================================
+    // File Uploading
+    //==================================================================================================================    
     public function _moveFile($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $throwOnFileExists = true, $moveMethod = null)
     {
         $ext = explode(".", $originalFileName);
@@ -358,6 +344,7 @@ abstract class DomainObject {
 
     public function __call($method, $args)
     {
+        $callMethod = $method; 
         if(substr($method,0,3) == "get")
         {
             if(substr($method,0,3) == "getSite")
@@ -366,11 +353,15 @@ abstract class DomainObject {
                 {
                     $method = str_replace("getSite", "get", $method);
                     return $this->siteEntity->$method();
+                } else {
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) , " or it's entities");
                 }
             } else {
                 if(method_exists($this->entity, $method))
                 {
                     return $this->entity->$method();
+                } else {
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) , " or it's entities");
                 }
             }
         }
@@ -392,8 +383,43 @@ abstract class DomainObject {
 
 
     //==================================================================================================================
-    // Setters
+    // Getters/Setters helpers
     //==================================================================================================================
+    public function getOptionOrDefault($field, $default, $options)
+    {
+        return array_key_exists($field, $options) ? $options[$field] : $default;        
+    }
+    
+    /**
+     * Get Site, used for multi-tenant sites.
+     * @param string $siteId
+     * @param string $partial
+     */
+    public function getSite($siteId = null, $partial = true)
+    {
+        if($siteId == null)
+        {
+            if($this->siteId) {
+                $siteId = $this->siteId;
+            } else {
+                $siteId = $this->container['SiteId'];
+            }
+        }
+
+        if($siteId) {
+            $entityManager = $this->container['EntityManager'];
+            if($partial) {
+                return $entityManager->getPartialReference($this->container['Settings.Entity_Site'], $siteId);   
+            } else {
+                if(is_numeric($siteId)) {
+                    return $entityManager->getRepository($this->container['Settings.Entity_Site'])->findOneBy(array('id' => $id));    
+                } else {
+                    return $entityManager->getRepository($this->container['Settings.Entity_Site'])->findOneBy(array('handle' => $id));    
+                }
+            }
+        }
+    }
+    
     public function setSite($mixed = null) {
         if(is_null($mixed)) {
             $this->setField("site", $this->getSite());
@@ -537,4 +563,114 @@ abstract class DomainObject {
     {
         return $this->entity;
     }
-}
+    
+    //===========================================================================================================    
+    // Convienence Methods
+    //===========================================================================================================    
+    
+    /**
+     * Get all entities (with basic pagination).
+     * Caution, this will not perform joins which may impact performance. 
+     * @param int $page
+     * @param null $entriesPerPage
+     * @param type $cache
+     */
+    public function getAllEntities($page = 1, $entriesPerPage = null, $cache = true)
+    {
+        $entityManager = $this->container['EntityManager'];       
+        if($page < 0) $page = 1;
+        if(is_null($entriesPerPage)) {
+            if(!isset($this->container['Settings.EntriesPerPage'])) {
+                throw new \Exception("Settings.EntriesPerPage must be set to call " . __FUNCTION__);
+            }
+            $entriesPerPage = $this->container['Settings.EntriesPerPage'];            
+        }
+        if(!isset($this->entityName)) {
+            throw new \Exception("class member entityName (Doctrine Entity Name) must be set to call" . __FUNCTION__);
+        }
+        
+        
+        $offset = ($page - 1) * $entriesPerPage; 
+        $joins = isset($this->defaultJoins) ? $this->defaultJoins : "";        
+        $r = $entityManager->createQuery("Select e FROM {$this->entityName} e {$joins}")
+            ->setMaxResults($entriesPerPage)->setFirstResult($offset)->Execute(); 
+        return $r;
+    }
+    
+    /**
+     * get all entities and return as array. 
+     * @param type $page
+     * @param type $entriesPerPage
+     * @param type $cache
+     * @return type
+     */
+    public function getAllEntitiesArray($page = 1, $entriesPerPage = null, $cache = true)
+    {
+        $entities = $this->getAllEntities($page, $entriesPerPage, $cache);
+        return $this->entitiesToArray($entities); 
+    }
+        
+    /**
+     * @param string $di DependencyInjection Handle for DomainObject
+     * @param array $entities array of entities to convert to array
+     * @param string $version  
+     */
+    public function entitiesToArray($entities, $di = null,  $version = 'latset')
+    {                
+        if(is_null($di)) {
+            if(!isset($this->doDIName)) {
+                throw new \Exception("class member doDIName (DomainObject DependencyInjection Name) must be set to call" . __FUNCTION__);
+            }
+            $di = $this->doDIName; 
+        }
+        if(!isset($this->container[$di])) {
+            throw new \Exception("$di entry must be populated in your Container object to proceed." . __FUNCTION__);
+        }                
+        $r = array(); 
+        foreach($entities as $entity) {
+            $do = $this->container[$di]; 
+            $do->load($entity); 
+            $r[] = $do->ToArray($version);                         
+        }
+        return $r; 
+    }
+    
+    /**
+     * Default Convert to array method
+     * @param type $version
+     * @return type
+     * @throws \Exception
+     */
+    public function toArray($version) {
+        $entityManager = $this->container['EntityManager'];      
+        if(!isset($this->entityName)) {
+            throw new \Exception("class member entityName (Doctrine Entity Name) must be set to call" . __FUNCTION__);
+        }
+        
+        $f = $entityManager->getClassMetadata($this->entityName)->getFieldNames();
+        $r = array(); 
+        foreach($f as $field) {
+            $method = "get$field";
+            $r[$field] = $this->$method(); 
+        }
+        return $r; 
+    }
+    
+    public function generateGuid(){
+        if (function_exists('com_create_guid')){
+            return com_create_guid();
+        }else{
+            mt_srand((double)microtime()*10000);//optional for php 4.2.0 and up.
+            $charid = strtoupper(md5(uniqid(rand(), true)));
+            $hyphen = chr(45);// "-"
+            $uuid = chr(123)// "{"
+                    .substr($charid, 0, 8).$hyphen
+                    .substr($charid, 8, 4).$hyphen
+                    .substr($charid,12, 4).$hyphen
+                    .substr($charid,16, 4).$hyphen
+                    .substr($charid,20,12)
+                    .chr(125);// "}"
+            return $uuid;
+        }
+    }    
+}   
