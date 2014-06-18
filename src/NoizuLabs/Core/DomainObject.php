@@ -5,6 +5,7 @@ abstract class DomainObject {
     protected $container;
     protected $logs;
     protected $loaded = false;
+    protected $siteLoaded = false;
     protected $entity;
     protected $siteEntity;
     protected $siteId;
@@ -20,7 +21,8 @@ abstract class DomainObject {
     protected $editAnyInternalFieldRole = null;
     protected $editContainedInternalFields = null;
     protected $identifierName = null;
-
+    protected $autoInitSiteEntity = false;
+    
     /**
      * Key of entity to pull from DI container.
      * @var string
@@ -38,7 +40,6 @@ abstract class DomainObject {
     //=========================================================
     // Init
     //=========================================================
-
     public function __construct()
     {
         global $container;
@@ -55,12 +56,30 @@ abstract class DomainObject {
         {     
             $this->entity = $this->container[$this->entityDIName];
             $this->loaded = true;
+            
+            if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName))
+            {
+                if($this->autoInitSiteEntity) 
+                {
+                    $this->_siteInit(); 
+                } else {
+                    $this->siteEntity = null;
+                    $this->siteLoaded = false;            
+                }                                
+            }            
         }
     }
 
-    public function load($mixed)
+    public function _siteInit()
+    {
+            $this->siteEntity = $this->container[$this->siteEntityDIName];
+            $this->siteLoaded = true;
+    }
+    
+    public function load($mixed,$site = null)
     {
         $this->loaded = false;
+        $this->siteLoaded = false;
         if(is_int($mixed))
         {
             $entityManager =  $this->container['EntityManager'];
@@ -72,11 +91,69 @@ abstract class DomainObject {
         } else if (is_string($mixed)) {
             $this->loadByString($mixed);
         }
+        
+        if($this->loaded && !$this->siteLoaded ) {            
+            $this->siteLoad($site);
+        }
+        return $this->loaded;
     }
 
-    public function loadByString()
+    
+    public function siteLoad($mixed) {        
+        $this->siteLoaded = false; 
+        if(isset($this->siteEntityName) && !empty($this->siteEntityName) && !is_null($mixed)) {      
+            if(is_int($mixed))
+            {
+                $entityManager =  $this->container['EntityManager'];
+                $this->siteEntity = $entityManager->find($this->siteEntityName, $mixed);
+                $this->siteLoaded = true;
+            }  else if (is_a($mixed, $this->siteEntityName)) {
+                $this->entity = $mixed;
+                $this->loaded = true;
+            } else if (is_string($mixed)) {                
+                $this->siteLoadByString($mixed);
+            } else {
+                $this->_siteLoad();
+            }
+        } else if(isset($this->siteEntityName) && !empty($this->siteEntityName)) {      
+            $this->_siteLoad();             
+        }
+        return $this->siteLoaded; 
+    }
+    
+    /**
+     * NVI method for loading site entity based off of current site. 
+     */
+    protected function _siteLoad()
     {
-        throw new \Exception( "LoadByString not Implemented for " . get_class($this));
+        throw new \Exception( "_siteLoad() not Implemented for " . get_class($this));
+    }
+    
+    public function siteLoadByString($value)
+    {
+        $entityManager =  $this->container['EntityManager'];
+        $f = $entityManager->getClassMetadata($this->siteEntityName)->getFieldNames();
+        if(in_array("handle", $f)) {
+            $this->siteEntity = $entityManager->getRepository($this->siteEntityName)->findOneBy(array('handle' => $value));    
+            $this->siteLoaded = true; 
+            return true; 
+        } else {                        
+            throw new \Exception( "SiteLoadLoadByString not Implemented for " . get_class($this));
+        }                
+    }
+    
+    public function loadByString($value)
+    {
+        $entityManager =  $this->container['EntityManager'];
+        $f = $entityManager->getClassMetadata($this->entityName)->getFieldNames();
+        if(in_array("handle", $f)) {
+            $this->entity = $entityManager->getRepository($this->entityName)->findOneBy(array('handle' => $value));    
+            if($this->entity) {
+                $this->loaded = true; 
+            }
+        } else {                        
+            throw new \Exception( "LoadByString not Implemented for " . get_class($this));
+        }
     }
         
     //==================================================================================================================
@@ -173,7 +250,7 @@ abstract class DomainObject {
     //==================================================================================================================
     // File Uploading
     //==================================================================================================================    
-    public function _moveFile($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $throwOnFileExists = true, $moveMethod = null)
+    public function _moveFile($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $throwOnFileExists = true, $moveMethod = null, $isUserData = false)
     {
         $ext = explode(".", $originalFileName);
         $ext = strtolower(end($ext));
@@ -182,8 +259,19 @@ abstract class DomainObject {
         }
         $fileName = md5_file($tmpPath) . "." . $ext;
         $hashDir = substr($fileName,0,3);
-        $saveFolder = $this->continer['WWW_ROOT'] . "/{$subDir}/{$hashDir}";
-
+        
+        if($isUserData) {
+            if(!isset($this->container['Settings.UploadUserContentFolder'])) {
+                throw new \Exception("You must set Settings.UploadUserContentFolder in your configuration DI object to upload user content");
+            }
+            $saveFolder = $this->container['Settings.UploadUserContentFolder'] . "/{$subDir}/{$hashDir}";
+        } else {
+            if(!isset($this->container['Settings.UploadFolder'])) {
+                throw new \Exception("You must set Settings.UploadFolder in your configuration DI object to upload content");
+            }            
+            $saveFolder = $this->container['Settings.UploadFolder'] . "/{$subDir}/{$hashDir}";
+        }
+        
         if(!file_exists($saveFolder)) {
             echo "Create File $saveFolder";
             mkdir($saveFolder, 0770,true);
@@ -345,40 +433,69 @@ abstract class DomainObject {
     public function __call($method, $args)
     {
         $callMethod = $method; 
+        if(!$this->loaded){
+            $this->init();
+        }
+        if(!$this->loaded){
+            throw new \Exception("You must succesfully instantiate a domain object before calling it's getter and setter methods " . __LINE__);
+        }        
         if(substr($method,0,3) == "get")
         {
-            if(substr($method,0,3) == "getSite")
+            if(substr($method,0,7) == "getSite")
             {
-                if(method_exists($this->entity, $method))
+                $method = str_replace("getSite", "get", $method);
+                if(method_exists($this->siteEntity, $method))
                 {
-                    $method = str_replace("getSite", "get", $method);
                     return $this->siteEntity->$method();
-                } else {
-                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) , " or it's entities");
+                } else if (method_exists($this->entity, $callMethod)){
+                    return $this->entity->$callMethod(); 
+                } else  {               
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities " . __LINE__);
                 }
             } else {
-                if(method_exists($this->entity, $method))
+                if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
+                {
+                    return $this->siteEntity->$method();
+                } else if (method_exists($this->entity, $method))
                 {
                     return $this->entity->$method();
-                } else {
-                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) , " or it's entities");
+                } else {          
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - "  . __LINE__);
                 }
             }
-        }
-
-
-        if(substr($method,0,3) == "set" && isset($args[0]))
+        } else if(substr($method,0,3) == "set")
         {
-            if(substr($method,0,3) == "getSite")
+            $arg = isset($args[0]) ? $args[0] : null;
+            if(substr($method,0,7) == "setSite")
             {
-                $field = str_replace("setSite", "", $method);
-                $method = "setSiteField";
-            } else {
-                $field = str_replace("set", "", $method);
-                $method = "setField";
+                $method = str_replace("setSite", "set", $method);
+                if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
+                {
+                    $field = str_replace("setSite", "", $callMethod);
+                    $method = "setSiteField";
+                } else if( method_exists($this->entity, $callMethod)) {
+                    $field = str_replace("set", "", $callMethod);
+                    $method = "setField";                    
+                } else {
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - " . __LINE__);
+                }             
+            } else {                
+                if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
+                {
+                    $field = str_replace("set", "", $method);
+                    $method = "setSiteField";
+                } else if (method_exists($this->entity, $method))
+                {
+                    $field = str_replace("set", "", $method);
+                    $method = "setField";                    
+                } else {
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - " .  __LINE__);
+                }
             }
-            $this->$method($field, $args[0]);
-        }
+            $this->$method($field, $arg);
+        } else {             
+            throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - " .  __LINE__);
+        }                
     }
 
 
@@ -436,8 +553,14 @@ abstract class DomainObject {
         $this->siteId = $id;
     }
 
+    public function getSystemStringField($field, $raw = false)
+    {
+        return $this->getModeratedStringField($field, $raw);
+    }
+    
     public function getModeratedStringField($field, $raw = false)
     {
+        
         $e = $this->getFieldCore($this->entity, $field);
         if($e && !$raw) {
             $ms = $this->container['Do_ModeratedString'];
@@ -453,6 +576,7 @@ abstract class DomainObject {
         $empty = isset($options['empty']) ? $options['empty'] : null;
         $action = isset($options['action']) ? $options['action'] : null;
         $author = isset($options['author']) ? $options['author'] : null;
+        $systemString = isset($options['isSystemString']) ? $options['isSystemString'] : null;
         $autoApprove = isset($options['autoApprove']) ? $options['autoApprove'] : false;
 
         if(is_string($value))
@@ -464,12 +588,12 @@ abstract class DomainObject {
                 $ms->edit($value, $options);
             } else {
                 $ms = $this->container['Do_Repository_ModeratedStrings'];
-                $string = $ms->CreateModeratedString($value, $stringType, $author, $autoApprove);
+                $string = $ms->CreateModeratedString($value, $stringType, $author, $autoApprove, $systemString);                                
                 $this->setFieldCore($entity, $field, $string->getEntity(), $empty);
             }
-        } else if(is_object($value) && is_a($value, $this->container['DoClass_ModeratedString'])) {
+        } else if(is_object($value) && is_a($value, $this->container['Settings.DoClass'])) {
             $this->setFieldCore($entity, $field, $value->getEntity(), $empty);
-        } else if(is_object($value) && is_a($value, $this->container['DoClass_ModeratedString'])) {
+        } else if(is_object($value) && is_a($value, $this->container['Settings.EntityClass'])) {
             $this->setFieldCore($entity, $field, $value, $empty);
         } else if (is_null($value) ) {
             $this->setFieldCore($entity, $field, $value, $empty);
@@ -477,7 +601,33 @@ abstract class DomainObject {
             throw new \Exception("set field ($field) expects a string, or a ModeratedString DomainObject or Entity");
         }
     }
+    
+    public function setSystemStringFieldAutoApprove($field, $stringType, $value, $options = array()) {
+        $options['autoApprove'] = true;
+        $options['isSystemString'] = true;
+        $this->setModeratedStringFieldCore($this->entity, $field, $stringType, $value, $options);
+    }
 
+    public function setSystemStringSiteFieldAutoApprove($field, $stringType, $value, $options = array()) {
+        $options['autoApprove'] = true;
+        $options['isSystemString'] = true;
+        $this->setModeratedStringFieldCore($this->siteEntity, $field, $stringType, $value, $options);
+    }
+
+    public function setSystemStringField($field, $stringType, $value, $options = array()) {
+        $options['isSystemString'] = true;
+        $this->setModeratedStringFieldCore($this->entity, $field, $stringType, $value, $options);
+    }
+
+    public function setSystemStringSiteField($field, $stringType, $value, $options = array()) {
+        $options['isSystemString'] = true;
+        $this->setModeratedStringFieldCore($this->siteEntity, $field, $stringType, $value, $options);
+    }
+    
+    
+    
+    
+    
     public function setModeratedStringFieldAutoApprove($field, $stringType, $value, $options = array()) {
         $options['autoApprove'] = true;
         $this->setModeratedStringFieldCore($this->entity, $field, $stringType, $value, $options);
@@ -513,10 +663,10 @@ abstract class DomainObject {
         $method = "set$field";
 
 
-        if(is_a($value, $this->container['DoClass_DomainObject']))
+        if(is_a($value, $this->container['Settings.DoClass_DomainObject']))
         {
             $entity->$method($value->getEntity());
-        } else if(is_a($value, $this->container['EntityClass_Entity'])){
+        } else if(is_a($value, $this->container['Settings.EntityClass_Entity'])){
             $entity->$method($value);
         } else {
             $entity->$method($value);
@@ -532,7 +682,6 @@ abstract class DomainObject {
         $method = "get$field";
         return $entity->$method();
     }
-
 
     protected function setSiteField($field, $value, $empty = false, $default = null)
     {
