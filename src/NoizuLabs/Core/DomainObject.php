@@ -174,7 +174,7 @@ abstract class DomainObject {
         $text = strtolower($text);
 
         // remove unwanted characters
-        $text = preg_replace('~[^-\w]+~', '', $text);
+        $text = preg_replace('~[^-\w\.\_]+~', '', $text);
 
         if (empty($text))
         {
@@ -453,13 +453,13 @@ abstract class DomainObject {
                     throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities " . __LINE__);
                 }
             } else {
-                if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
-                {
-                    return $this->siteEntity->$method();
-                } else if (method_exists($this->entity, $method))
+                if (method_exists($this->entity, $method))
                 {
                     return $this->entity->$method();
-                } else {          
+                } else if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
+                {
+                    return $this->siteEntity->$method();
+                }  else {          
                     throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - "  . __LINE__);
                 }
             }
@@ -480,19 +480,43 @@ abstract class DomainObject {
                     throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - " . __LINE__);
                 }             
             } else {                
-                if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
-                {
-                    $field = str_replace("set", "", $method);
-                    $method = "setSiteField";
-                } else if (method_exists($this->entity, $method))
+                if (method_exists($this->entity, $method))
                 {
                     $field = str_replace("set", "", $method);
                     $method = "setField";                    
+                } else if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
+                {
+                    $field = str_replace("set", "", $method);
+                    $method = "setSiteField";
                 } else {
                     throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - " .  __LINE__);
                 }
             }
             $this->$method($field, $arg);
+        } else if(substr($method,0,3) == "has")
+        {
+            if(substr($method,0,7) == "hasSite")
+            {
+                $method = str_replace("hasSite", "has", $method);
+                if(method_exists($this->siteEntity, $method))
+                {
+                    return $this->siteEntity->$method();
+                } else if (method_exists($this->entity, $callMethod)){
+                    return $this->entity->$callMethod(); 
+                } else  {               
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities " . __LINE__);
+                }
+            } else {
+                if (method_exists($this->entity, $method))
+                {
+                    return $this->entity->$method();
+                } else if(isset($this->siteEntity) && method_exists($this->siteEntity, $method))
+                {
+                    return $this->siteEntity->$method();
+                }  else {          
+                    throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - "  . __LINE__);
+                }
+            }
         } else {             
             throw new \Exception("Method $callMethod does not exist on class" . get_class($this) . " or it's entities - " .  __LINE__);
         }                
@@ -553,14 +577,29 @@ abstract class DomainObject {
         $this->siteId = $id;
     }
 
+    public function getSiteSystemStringField($field, $raw = false)
+    {
+        return $this->getSiteModeratedStringField($field, $raw);
+    }
+    
     public function getSystemStringField($field, $raw = false)
     {
         return $this->getModeratedStringField($field, $raw);
     }
     
+    public function getSiteModeratedStringField($field, $raw = false)
+    {        
+        $e = $this->getFieldCore($this->siteEntity, $field);        
+        if($e && !$raw) {
+            $ms = $this->container['Do_ModeratedString'];
+            $ms->load($e);
+            return $ms;
+        }
+        return $e;
+    }    
+    
     public function getModeratedStringField($field, $raw = false)
     {
-        
         $e = $this->getFieldCore($this->entity, $field);
         if($e && !$raw) {
             $ms = $this->container['Do_ModeratedString'];
