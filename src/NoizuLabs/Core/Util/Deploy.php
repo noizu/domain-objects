@@ -83,6 +83,16 @@ class Deploy {
         $projectDir = $this->settings['project-dir'];
         $deployTo = $this->settings['deploy-to'];
         $server = $this->settings['server'];
+        $excludes = $this->settings['exclude'];
+
+        $excludeString = "";
+        if(is_array($excludes)) {
+          foreach($excludes as $exclude) {
+         $excludeString .= " --exclude '$exclude' ";
+          }         
+        } else if(!empty($excludes)) {
+          $excludeString = " --exclude '$excludes' ";
+        }
 
         if(substr($deployTo,-1,1) == "/") $deployTo = substr($deployTo,0,-1);
 
@@ -98,7 +108,7 @@ class Deploy {
         if(!$this->isOngoingDeployment())
         {
            $cwd = getcwd(); 
-           $cmd = "rsync -avz {$cwd}/ {$user}@{$server}:{$projectDir}/{$deployTo}/";
+           $cmd = "rsync -avz $excludeString --delete {$cwd}/ {$user}@{$server}:{$projectDir}/{$deployTo}/";
            echo "running $cmd";
            echo `$cmd` . "\n";
 
