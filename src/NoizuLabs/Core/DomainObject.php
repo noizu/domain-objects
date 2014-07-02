@@ -22,6 +22,7 @@ abstract class DomainObject {
     protected $editContainedInternalFields = null;
     protected $identifierName = null;
     protected $autoInitSiteEntity = false;
+    protected $siteInitAttempted = false; 
     
     /**
      * Key of entity to pull from DI container.
@@ -56,18 +57,17 @@ abstract class DomainObject {
         {     
             $this->entity = $this->container[$this->entityDIName];
             $this->loaded = true;
-            
-            if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName))
-            {
-                if($this->autoInitSiteEntity) 
-                {
-                    $this->_siteInit(); 
-                } else {
-                    $this->siteEntity = null;
-                    $this->siteLoaded = false;            
-                }                                
-            }            
         }
+        if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$thiis->siteLoaded)
+        {
+            if($this->autoInitSiteEntity) 
+            {
+                $this->_siteInit(); 
+            } else {
+                $this->siteEntity = null;
+                $this->siteLoaded = false;            
+            }                                
+        }            
     }
 
     public function _siteInit()
@@ -112,7 +112,7 @@ abstract class DomainObject {
                 $this->loaded = true;
             } else if (is_string($mixed)) {                
                 $this->siteLoadByString($mixed);
-            } else {
+            } else {   
                 $this->_siteLoad();
             }
         } else if(isset($this->siteEntityName) && !empty($this->siteEntityName)) {      
@@ -250,14 +250,9 @@ abstract class DomainObject {
     //==================================================================================================================
     // File Uploading
     //==================================================================================================================    
-    public function _moveFile($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $throwOnFileExists = true, $moveMethod = null, $isUserData = false)
+
+    protected function _getMovePath($fileName, $originalFileName, $extensions, $name, $isUserData, $subDir)
     {
-        $ext = explode(".", $originalFileName);
-        $ext = strtolower(end($ext));
-        if(!in_array($ext, $extensions)) {
-            throw new \Exception("$name must be of type " . implode(",", $extensions) . " and have appropriate  file extension");
-        }
-        $fileName = md5_file($tmpPath) . "." . $ext;
         $hashDir = substr($fileName,0,3);
         
         if($isUserData) {
@@ -271,6 +266,26 @@ abstract class DomainObject {
             }            
             $saveFolder = $this->container['Settings.UploadFolder'] . "/{$subDir}/{$hashDir}";
         }
+        return $saveFolder;
+    }
+            
+    public function _getNewFilename($tmpPath, $originalFileName)
+    {
+        $exta = \explode(".", $originalFileName);
+        $ext = strtolower(end($exta));     
+        $fileName = md5_file($tmpPath) . "." . $ext;
+        return $fileName;
+    }
+    
+    public function _moveFile($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $throwOnFileExists = true, $moveMethod = null, $isUserData = false)
+    {
+        $exta = \explode(".", $originalFileName);
+        $ext = strtolower(end($exta));
+        if(!in_array($ext, $extensions)) {
+            throw new \Exception("$name must be of type " . implode(",", $extensions) . " and have appropriate  file extension");
+        }           
+        $fileName = $this->_getNewFilename($tmpPath, $originalFileName);
+        $saveFolder = $this->_getMovePath($fileName, $originalFileName, $extensions, $name, $isUserData, $subDir);
         
         if(!file_exists($saveFolder)) {
             echo "Create File $saveFolder";
@@ -278,16 +293,25 @@ abstract class DomainObject {
         }
 
         if(file_exists($saveFolder . "/" . $fileName)) {
-            if($throwOnFileExists) throw new \Exception("$name already exists");
+            if($throwOnFileExists) {
+                throw new \Exception("$name already exists");
+            }
         } else {
             if(!$moveMethod($tmpPath, $saveFolder . "/" . $fileName))
             {
                 throw new \Exception("Error Attempting To Upload $name.");
             }
         }
+        $hashDir = substr($fileName,0,3);
         return "{$hashDir}/{$fileName}";
     }
 
+    public function fileExists($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $userData = true) {
+        $fileName = $this->_getNewFilename($tmpPath, $originalFileName);
+        $saveFolder = $this->_getMovePath($fileName, $originalFileName, $extensions, $name, $userData, $subDir);
+        return (file_exists($saveFolder . "/" . $fileName));
+    }
+    
     public function importFile($subDir, $tmpPath, $originalFileName, array $extensions, $name = "File", $throwOnFileExists = true)
     {
         $moveMethod = function($from,$to) { return copy($from, $to); };
