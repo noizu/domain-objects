@@ -58,7 +58,7 @@ abstract class DomainObject {
             $this->entity = $this->container[$this->entityDIName];
             $this->loaded = true; 
         }
-        if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$thiis->siteLoaded)
+        if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$this->siteLoaded)
         {
             if($this->autoInitSiteEntity) 
             {
