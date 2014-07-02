@@ -56,7 +56,7 @@ abstract class DomainObject {
         if($this->loaded == false)
         {     
             $this->entity = $this->container[$this->entityDIName];
-            $this->loaded = true;
+            $this->loaded = true; 
         }
         if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$thiis->siteLoaded)
         {
@@ -64,8 +64,10 @@ abstract class DomainObject {
             {
                 $this->_siteInit(); 
             } else {
-                $this->siteEntity = null;
-                $this->siteLoaded = false;            
+                if(empty($this->siteEntity)) {
+                    $this->siteEntity = null;
+                    $this->siteLoaded = false;                
+                }
             }                                
         }            
     }
@@ -885,4 +887,4 @@ abstract class DomainObject {
             return $uuid;
         }
     }    
-}   
+}
