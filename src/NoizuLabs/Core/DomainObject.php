@@ -58,7 +58,7 @@ abstract class DomainObject {
             $this->entity = $this->container[$this->entityDIName];
             $this->loaded = true; 
         }
-        if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$this->siteLoaded)
+        if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$thiis->siteLoaded)
         {
             if($this->autoInitSiteEntity) 
             {
@@ -110,8 +110,8 @@ abstract class DomainObject {
                 $this->siteEntity = $entityManager->find($this->siteEntityName, $mixed);
                 $this->siteLoaded = true;
             }  else if (is_a($mixed, $this->siteEntityName)) {
-                $this->entity = $mixed;
-                $this->loaded = true;
+                $this->siteEntity = $mixed;
+                $this->siteLoaded = true;
             } else if (is_string($mixed)) {                
                 $this->siteLoadByString($mixed);
             } else {   
