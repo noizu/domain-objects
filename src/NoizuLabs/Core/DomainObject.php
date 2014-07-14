@@ -53,12 +53,12 @@ abstract class DomainObject {
     
     protected function init() 
     {
-        if($this->loaded == false)
+        if ($this->loaded == false)
         {     
             $this->entity = $this->container[$this->entityDIName];
             $this->loaded = true; 
         }
-        if(isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$this->siteLoaded)
+        if (isset($this->siteEntityDIName) && !empty($this->siteEntityDIName) && !$this->siteLoaded)
         {
             if($this->autoInitSiteEntity) 
             {
@@ -290,7 +290,6 @@ abstract class DomainObject {
         $saveFolder = $this->_getMovePath($fileName, $originalFileName, $extensions, $name, $isUserData, $subDir);
         
         if(!file_exists($saveFolder)) {
-            echo "Create File $saveFolder";
             mkdir($saveFolder, 0770,true);
         }
 
