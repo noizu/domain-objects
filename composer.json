@@ -2,13 +2,16 @@
     "name": "noizu-labs/core",
     "description": "Some base libraries for working with doctrine. Templated Email Queues, Moderated Strings, etc.",
     "require": {
-             "noizu-labs/fragmented-keys": "dev-master",
-             "noizu-labs/php-conform": "dev-master", 
-             "pimple/pimple":"~1.1",
-             "doctrine/orm": "~2.4"
+             "noizu-labs/fragmented-keys": "0.2.*",
+             "noizu-labs/php-conform": "0.1.*", 
+             "pimple/pimple":"1.*",
+             "doctrine/orm": "2.*"
 
     },
     "require-dev": {
+    },
+    "config": {
+        "preferred-install": "dist" 
     },
     "license": "mit",
     "authors": [
