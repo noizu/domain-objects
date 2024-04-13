@@ -1,6 +1,6 @@
-# Noizu Core
+# Domain Objects
 
-Noizu Core is a collection of essential components and tools designed to streamline development with Doctrine ORM. It offers various functionalities, including domain object management, moderated strings, email queuing, user management, file uploading, and more. These components aim to provide a solid foundation for building robust and scalable PHP applications.
+Noizu Domain OBjects is a collection of essential components and tools designed to streamline development with Doctrine ORM. It offers various functionalities, including domain object management, moderated strings, email queuing, user management, file uploading, and more. These components aim to provide a solid foundation for building robust and scalable PHP applications.
 
 
 ## Features
